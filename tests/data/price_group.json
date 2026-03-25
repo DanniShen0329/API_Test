@@ -1,0 +1,96 @@
+{
+  "valid_requests": [
+    {
+      "description": "有效的价格组特价商品变更请求",
+      "grpCode": "20",
+      "details": [
+        {
+          "gdGid": 3150760,
+          "qpcStr": "2:5",
+          "specPrice": 1,
+          "description": "设置商品为特价商品"
+        }
+      ]
+    },
+    {
+      "description": "批量变更多个商品",
+      "grpCode": "30",
+      "details": [
+        {
+          "gdGid": 3150761,
+          "qpcStr": "1",
+          "specPrice": 1
+        },
+        {
+          "gdGid": 3150762,
+          "qpcStr": "2:3",
+          "specPrice": 0
+        }
+      ]
+    }
+  ],
+  "invalid_requests": [
+    {
+      "description": "缺少必填字段 gdGid",
+      "grpCode": "20",
+      "details": [
+        {
+          "specPrice": 1,
+          "qpcStr": "2:5"
+        }
+      ],
+      "expected_error": "gdGid不能为空"
+    },
+    {
+      "description": "缺少必填字段 specPrice",
+      "grpCode": "20",
+      "details": [
+        {
+          "gdGid": 3150760,
+          "qpcStr": "2:5"
+        }
+      ],
+      "expected_error": "specPrice不能为空"
+    },
+    {
+      "description": "grpCode 为空",
+      "grpCode": "",
+      "details": [
+        {
+          "gdGid": 3150760,
+          "specPrice": 1
+        }
+      ],
+      "expected_error": "grpCode不能为空"
+    },
+    {
+      "description": "qpcStr 格式错误",
+      "grpCode": "20",
+      "details": [
+        {
+          "gdGid": 3150760,
+          "qpcStr": "invalid",
+          "specPrice": 1
+        }
+      ],
+      "expected_error": "qpcStr格式不正确"
+    }
+  ],
+  "edge_cases": [
+    {
+      "description": "空明细列表",
+      "grpCode": "20",
+      "details": []
+    },
+    {
+      "description": "specPrice 边界值",
+      "grpCode": "20",
+      "details": [
+        {
+          "gdGid": 3150760,
+          "specPrice": 0
+        }
+      ]
+    }
+  ]
+}

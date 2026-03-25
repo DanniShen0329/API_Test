@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+
+# Pytest
+.pytest_cache/
+.coverage
+
+# Allure
+allure-results/
+allure-report/
+
+# Environment variables
+.env
+.env.local
+
+# Generated reports
+report.html
+*.txt
+test_report_*.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

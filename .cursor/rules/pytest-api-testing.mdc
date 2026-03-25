@@ -1,0 +1,365 @@
+---
+description: Python+pytest接口自动化测试开发规范
+globs: "**/*_test.py"
+alwaysApply: false
+---
+
+# Python+pytest 接口自动化测试开发规范
+
+## 项目结构
+
+```
+tests/
+├── conftest.py          # 全局fixture
+├── config/              # 环境配置目录（独立配置环境）
+│   ├── __init__.py
+│   ├── settings.py      # 环境配置基类
+│   ├── dev.py           # 开发环境配置
+│   ├── test.py          # 测试环境配置
+│   └── prod.py          # 生产环境配置
+├── data/                # 测试数据目录（独立配置数据）
+│   ├── users.json       # 用户相关测试数据
+│   ├── orders.json      # 订单相关测试数据
+│   └── fixtures/        # 动态生成的测试数据
+│       └── __init__.py
+├── api/                 # API测试模块
+│   ├── __init__.py
+│   ├── test_user_api.py
+│   └── test_order_api.py
+└── utils/               # 工具函数
+    ├── __init__.py
+    ├── http_client.py   # HTTP请求封装
+    └── assertions.py    # 断言工具
+```
+
+## 代码规范
+
+### 1. 测试函数命名
+
+```python
+# ✅ GOOD: 清晰描述测试场景
+def test_user_login_with_valid_credentials():
+    pass
+
+def test_user_login_with_invalid_password():
+    pass
+
+# ❌ BAD: 命名不清晰
+def test_login1():
+    pass
+
+def test_case_001():
+    pass
+```
+
+### 2. 使用Fixture管理依赖
+
+```python
+# ✅ GOOD: 使用fixture管理测试数据
+@pytest.fixture
+def api_client():
+    client = HttpClient(base_url="https://api.example.com")
+    yield client
+    client.close()
+
+@pytest.fixture
+def auth_token(api_client):
+    response = api_client.post("/auth/login", json={"user": "admin", "pass": "123"})
+    return response.json()["token"]
+
+# 使用fixture
+def test_get_user_info(api_client, auth_token):
+    response = api_client.get("/user/info", headers={"Authorization": auth_token})
+    assert response.status_code == 200
+```
+
+### 3. 数据驱动测试
+
+```python
+# ✅ GOOD: 使用pytest.mark.parametrize
+@pytest.mark.parametrize("username,password,expected", [
+    ("admin", "123456", 200),
+    ("admin", "wrong", 401),
+    ("", "123456", 400),
+])
+def test_login(api_client, username, password, expected):
+    response = api_client.post("/login", json={
+        "username": username,
+        "password": password
+    })
+    assert response.status_code == expected
+```
+
+### 4. 请求封装与重试
+
+```python
+# ✅ GOOD: 封装HTTP客户端
+class HttpClient:
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+        self.session = requests.Session()
+        self.session.headers.update({
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        })
+
+    def get(self, path: str, **kwargs):
+        return self._request("GET", path, **kwargs)
+
+    def post(self, path: str, **kwargs):
+        return self._request("POST", path, **kwargs)
+
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
+    def _request(self, method: str, path: str, **kwargs):
+        url = f"{self.base_url}{path}"
+        response = self.session.request(method, url, **kwargs)
+        response.raise_for_status()
+        return response
+```
+
+### 5. 断言规范
+
+```python
+# ✅ GOOD: 具体且有意义的断言
+def test_create_user(api_client):
+    response = api_client.post("/users", json={"name": "John", "email": "john@test.com"})
+    data = response.json()
+
+    assert response.status_code == 201
+    assert data["id"] is not None
+    assert data["name"] == "John"
+    assert "created_at" in data
+    assert re.match(r"^\d{4}-\d{2}-\d{2}T", data["created_at"])
+
+# ❌ BAD: 过于简单的断言
+def test_create_user_bad(api_client):
+    response = api_client.post("/users", json={"name": "John"})
+    assert response.ok  # 不够具体
+```
+
+### 6. 错误处理与日志
+
+```python
+# ✅ GOOD: 使用pytest.raises捕获异常，添加日志
+import logging
+
+logger = logging.getLogger(__name__)
+
+def test_api_timeout(api_client):
+    with pytest.raises(requests.Timeout):
+        api_client.get("/slow-endpoint", timeout=0.001)
+    logger.info("Timeout handled correctly")
+
+# ✅ GOOD: 记录测试步骤
+def test_order_flow(api_client):
+    logger.info("Step 1: Create order")
+    order = api_client.post("/orders", json={"item": "book"}).json()
+
+    logger.info("Step 2: Verify order status")
+    assert order["status"] == "pending"
+
+    logger.info("Step 3: Process payment")
+    api_client.post(f"/orders/{order['id']}/pay")
+```
+
+### 7. 环境配置（单独文件配置）
+
+环境配置必须与测试代码分离，放置在 `config/` 目录下：
+
+```python
+# config/settings.py - 基础配置类
+from pydantic import BaseSettings
+from typing import Optional
+
+class BaseConfig(BaseSettings):
+    env: str = "test"
+    base_url: str
+    db_host: str
+    db_name: str
+    timeout: int = 30
+    retry_times: int = 3
+
+    class Config:
+        env_file = ".env"
+
+# config/dev.py - 开发环境
+from .settings import BaseConfig
+
+class DevConfig(BaseConfig):
+    env = "dev"
+    base_url = "http://localhost:8080"
+    db_host = "localhost"
+    db_name = "dev_db"
+
+# config/test.py - 测试环境
+from .settings import BaseConfig
+
+class TestConfig(BaseConfig):
+    env = "test"
+    base_url = "https://api-test.example.com"
+    db_host = "test-db.example.com"
+    db_name = "test_db"
+
+# config/__init__.py - 配置加载
+import os
+from .dev import DevConfig
+from .test import TestConfig
+
+CONFIG_MAP = {
+    "dev": DevConfig,
+    "test": TestConfig,
+}
+
+def get_config():
+    env = os.getenv("TEST_ENV", "test")
+    return CONFIG_MAP.get(env, TestConfig)()
+```
+
+### 8. 测试数据管理（单独文件配置）
+
+测试数据必须与测试代码分离，放置在 `data/` 目录下：
+
+```python
+# data/__init__.py - 测试数据加载器
+import json
+import os
+from pathlib import Path
+
+DATA_DIR = Path(__file__).parent
+
+def load_json(filename: str) -> dict:
+    filepath = DATA_DIR / filename
+    with open(filepath, encoding="utf-8") as f:
+        return json.load(f)
+
+# 按模块组织数据
+user_data = load_json("users.json")
+order_data = load_json("orders.json")
+```
+
+```json
+// data/users.json - 用户测试数据
+{
+  "valid_users": [
+    {"username": "admin", "password": "123456", "email": "admin@test.com"},
+    {"username": "user001", "password": "password", "email": "user001@test.com"}
+  ],
+  "invalid_users": [
+    {"username": "", "password": "123456", "expected_error": "用户名不能为空"},
+    {"username": "admin", "password": "", "expected_error": "密码不能为空"}
+  ]
+}
+```
+
+```python
+# conftest.py - 在测试中使用配置和数据
+import pytest
+from tests.config import get_config
+from tests.data import user_data, order_data
+
+@pytest.fixture(scope="session")
+def config():
+    return get_config()
+
+@pytest.fixture(scope="session")
+def api_client(config):
+    return HttpClient(
+        base_url=config.base_url,
+        timeout=config.timeout,
+        retry_times=config.retry_times
+    )
+
+@pytest.fixture
+def valid_users():
+    return user_data["valid_users"]
+
+@pytest.fixture
+def invalid_users():
+    return user_data["invalid_users"]
+
+# 测试中使用
+def test_create_valid_users(api_client, valid_users):
+    for user in valid_users:
+        response = api_client.post("/users", json=user)
+        assert response.status_code == 201
+```
+
+**重要原则：**
+- ❌ **禁止**在测试文件中硬编码配置参数（如base_url、数据库连接等）
+- ❌ **禁止**在测试文件中直接定义测试数据字典
+- ✅ **必须**通过导入方式使用 `config/` 和 `data/` 中的配置和数据
+
+### 9. 测试标记与跳过
+
+```python
+# ✅ GOOD: 使用标记分类测试
+@pytest.mark.smoke
+def test_health_check(api_client):
+    response = api_client.get("/health")
+    assert response.status_code == 200
+
+@pytest.mark.slow
+@pytest.mark.integration
+def test_full_order_flow(api_client):
+    # 长时间运行的集成测试
+    pass
+
+# 根据条件跳过
+@pytest.mark.skipif(os.getenv("CI"), reason="跳过本地测试")
+def test_local_feature():
+    pass
+```
+
+### 10. Allure报告集成
+
+```python
+# ✅ GOOD: 添加Allure步骤和附件
+import allure
+
+def test_user_registration(api_client):
+    with allure.step("准备注册数据"):
+        payload = {"username": "newuser", "email": "new@test.com"}
+        allure.attach(json.dumps(payload, indent=2), "请求数据", allure.attachment_type.JSON)
+
+    with allure.step("发送注册请求"):
+        response = api_client.post("/register", json=payload)
+        allure.attach(str(response.status_code), "状态码", allure.attachment_type.TEXT)
+
+    with allure.step("验证响应"):
+        data = response.json()
+        assert data["success"] is True
+        allure.attach(data["user_id"], "用户ID", allure.attachment_type.TEXT)
+```
+
+## 常用依赖
+
+```txt
+pytest>=7.0.0
+pytest-html>=3.2.0
+pytest-xdist>=3.0.0
+requests>=2.28.0
+tenacity>=8.0.0  # 重试机制
+allure-pytest>=2.12.0  # 测试报告
+pydantic>=1.10.0  # 数据验证
+python-dotenv>=0.21.0  # 环境变量
+```
+
+## 运行命令
+
+```bash
+# 运行所有测试
+pytest
+
+# 运行特定标记的测试
+pytest -m smoke
+
+# 生成HTML报告
+pytest --html=report.html
+
+# 并行执行
+pytest -n auto
+
+# 生成Allure报告
+pytest --alluredir=./allure-results
+allure serve ./allure-results
+```
