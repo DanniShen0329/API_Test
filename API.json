@@ -1,0 +1,69 @@
+{
+    "method": "POST",
+    "path": "/h6-openapi2-service/v1/rprcgrp/changespecprice",
+    "summary": "价格组特价商品变更",
+    "parameters": [
+      {
+        "name": "description",
+        "in": "body",
+        "required": false,
+        "description": "价格组商品特价商品属性变更",
+        "type": "string"
+      },
+      {
+        "name": "details",
+        "in": "body",
+        "required": true,
+        "description": "明细",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "description": {
+                "type": "string",
+                "description": "价格组商品特价商品属性变更明细"
+              },
+              "gdGid": {
+                "type": "integer",
+                "format": "int32",
+                "example": 3150760,
+                "description": "商品gid"
+              },
+              "qpcStr": {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 15,
+                "pattern": "^\\d+\\*\\d+$",
+                "example": "1*5",
+                "description": "包装规格描述，格式为：数字*数字，比如1*5或1*1"
+              },
+              "specPrice": {
+                "type": "integer",
+                "example": 0,
+                "description": "特价商品，0-否，1-是"
+              }
+            },
+            "required": ["gdGid", "specPrice"]
+          }
+        }
+      },
+      {
+        "name": "grpCode",
+        "in": "body",
+        "required": true,
+        "description": "价格组代码",
+        "type": "string",
+        "minLength": 0,
+        "maxLength": 10,
+        "example": "20"
+      },
+      {
+        "name": "sid",
+        "in": "header",
+        "required": true,
+        "description": "sid",
+        "type": "string"
+      }
+    ]
+  }

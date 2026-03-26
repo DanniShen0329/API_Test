@@ -61,7 +61,7 @@ class TestPriceGroupChangeSpecPrice:
         with allure.step("发送特价商品变更请求"):
             response = api_client.post(
                 PRICE_GROUP_CHANGE_SPEC_PRICE_ENDPOINT,
-                json={"change": payload},
+                json=payload,
                 headers=auth_headers
             )
             allure.attach(str(response.status_code), "状态码", allure.attachment_type.TEXT)
@@ -70,7 +70,15 @@ class TestPriceGroupChangeSpecPrice:
         
         with allure.step("验证响应"):
             APIAssertions.assert_status_code(response, 200)
-            logger.info(f"✅ {description} - 成功")
+            
+            # 验证响应体中的业务状态码
+            response_data = response.json()
+            actual_code = response_data.get("code")
+            assert actual_code == 2000, f"期望响应 code 为 2000，实际为 {actual_code}，msg: {response_data.get('msg', '')}"
+            
+            # 记录响应数据到日志（在报告中显示）
+            logger.info(f"[验证结果] ✅ {description} - 成功 (code: 2000)")
+            logger.info(f"[响应数据] {json.dumps(response_data, indent=2, ensure_ascii=False)}")
 
     @allure.title("测试无效请求 - {description}")
     @pytest.mark.parametrize("description,grpCode,details,expected_error", get_invalid_test_cases())
@@ -90,7 +98,7 @@ class TestPriceGroupChangeSpecPrice:
         with allure.step("发送请求"):
             response = api_client.post(
                 PRICE_GROUP_CHANGE_SPEC_PRICE_ENDPOINT,
-                json={"change": payload},
+                json=payload,
                 headers=auth_headers
             )
             allure.attach(str(response.status_code), "状态码", allure.attachment_type.TEXT)
@@ -130,7 +138,7 @@ class TestPriceGroupChangeSpecPrice:
         with allure.step("发送请求"):
             response = api_client.post(
                 PRICE_GROUP_CHANGE_SPEC_PRICE_ENDPOINT,
-                json={"change": payload},
+                json=payload,
                 headers=auth_headers
             )
             allure.attach(str(response.status_code), "状态码", allure.attachment_type.TEXT)
@@ -164,7 +172,7 @@ class TestPriceGroupDataDrivenFull:
                 
                 response = api_client.post(
                     PRICE_GROUP_CHANGE_SPEC_PRICE_ENDPOINT,
-                    json={"change": payload},
+                    json=payload,
                     headers=auth_headers
                 )
                 
@@ -195,7 +203,7 @@ class TestPriceGroupDataDrivenFull:
                 
                 response = api_client.post(
                     PRICE_GROUP_CHANGE_SPEC_PRICE_ENDPOINT,
-                    json={"change": payload},
+                    json=payload,
                     headers=auth_headers
                 )
                 
@@ -235,7 +243,7 @@ class TestPriceGroupDataDrivenFull:
                 
                 response = api_client.post(
                     PRICE_GROUP_CHANGE_SPEC_PRICE_ENDPOINT,
-                    json={"change": payload},
+                    json=payload,
                     headers=auth_headers
                 )
                 
@@ -268,7 +276,7 @@ class TestPriceGroupSingleScenarios:
         with allure.step("发送请求"):
             response = api_client.post(
                 PRICE_GROUP_CHANGE_SPEC_PRICE_ENDPOINT,
-                json={"change": payload},
+                json=payload,
                 headers=auth_headers
             )
             allure.attach(str(response.status_code), "状态码", allure.attachment_type.TEXT)
@@ -303,7 +311,7 @@ class TestPriceGroupSingleScenarios:
         with allure.step("发送批量请求"):
             response = api_client.post(
                 PRICE_GROUP_CHANGE_SPEC_PRICE_ENDPOINT,
-                json={"change": payload},
+                json=payload,
                 headers=auth_headers
             )
             allure.attach(str(response.status_code), "状态码", allure.attachment_type.TEXT)

@@ -1,5 +1,6 @@
 """HTTP客户端封装"""
 import logging
+import json
 import requests
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
@@ -36,6 +37,29 @@ class HttpClient:
         """发送DELETE请求"""
         return self._request("DELETE", path, **kwargs)
 
+    def _log_request(self, method: str, url: str, headers: dict, json_data: dict = None):
+        """记录请求信息"""
+        logger.info(f"=" * 60)
+        logger.info(f"[REQUEST] {method} {url}")
+        logger.info(f"[REQUEST HEADERS] {json.dumps(dict(headers), indent=2, ensure_ascii=False)}")
+        if json_data:
+            logger.info(f"[REQUEST BODY] {json.dumps(json_data, indent=2, ensure_ascii=False)}")
+        logger.info(f"=" * 60)
+
+    def _log_response(self, response: requests.Response, elapsed_ms: float):
+        """记录响应信息"""
+        logger.info(f"-" * 60)
+        logger.info(f"[RESPONSE] Status: {response.status_code} ({elapsed_ms:.2f}ms)")
+        try:
+            if response.text:
+                resp_body = response.json()
+                logger.info(f"[RESPONSE BODY] {json.dumps(resp_body, indent=2, ensure_ascii=False)}")
+            else:
+                logger.info(f"[RESPONSE BODY] (empty)")
+        except ValueError:
+            logger.info(f"[RESPONSE BODY] {response.text}")
+        logger.info(f"-" * 60)
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_fixed(1),
@@ -44,27 +68,40 @@ class HttpClient:
     )
     def _request(self, method: str, path: str, **kwargs):
         """发送HTTP请求（带重试机制）"""
+        import time
+        
         url = f"{self.base_url}{path}"
         
         # 设置默认超时
         if "timeout" not in kwargs:
             kwargs["timeout"] = self.timeout
         
-        logger.debug(f"发送 {method} 请求: {url}")
+        # 获取请求体用于日志记录
+        json_data = kwargs.get('json') or kwargs.get('data')
+        headers = kwargs.get('headers', self.session.headers)
+        
+        # 记录请求
+        self._log_request(method, url, headers, json_data)
+        
+        start_time = time.time()
         
         try:
             response = self.session.request(method, url, **kwargs)
+            elapsed_ms = (time.time() - start_time) * 1000
+            
+            # 记录响应
+            self._log_response(response, elapsed_ms)
+            
             response.raise_for_status()
-            logger.debug(f"请求成功: {response.status_code}")
             return response
         except requests.Timeout as e:
-            logger.error(f"请求超时: {url}")
+            logger.error(f"[ERROR] 请求超时: {url}")
             raise
         except requests.ConnectionError as e:
-            logger.error(f"连接错误: {url}")
+            logger.error(f"[ERROR] 连接错误: {url}")
             raise
         except requests.HTTPError as e:
-            logger.error(f"HTTP错误: {response.status_code} - {response.text}")
+            logger.error(f"[ERROR] HTTP错误: {response.status_code} - {response.text}")
             raise
 
     def close(self):
